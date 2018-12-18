@@ -23,12 +23,15 @@
  * provided "as is" without express or implied warranty.                  *
  **************************************************************************/
 
-class TH1;
-class TH2;
-class TH3;
+class TClonesArray;
+class THistManager;
+//class TH1;
+//class TH2;
+//class TH3;
 
 class TString;
 
+#include <TObjArray.h>
 #include <AliLog.h>
 
 #include "THistManager.h"
@@ -66,8 +69,7 @@ class AliEmcalTriggerSimQATask : public AliAnalysisTaskEmcal {
 
   static const Int_t                        kNTriggerTypes = 6; // No Trigger,L0,EG1,EG2,EJ1,EJ2
   const TString                             fTriggerNames[kNTriggerTypes] = {"NTr","L0","EG1","EG2","EJ1","EJ2"};
-  const EventEMCALTriggerType_t             fTriggerTypes[kNTriggerTypes] = {kNTr, kEL0, kEG1, kEG2, kEJ1, kEJ2};
-
+  EventEMCALTriggerType_t                   fTriggerTypes[kNTriggerTypes]; //!<! Trigger type array
   TString                                   fTriggerPatchesName;         ///< name of input trigger array
   TClonesArray                             *fTriggerPatches;             //!<! trigger array in
 

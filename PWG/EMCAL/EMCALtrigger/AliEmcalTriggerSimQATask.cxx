@@ -54,6 +54,10 @@ fEventTriggerBits(0x0),
 fHistManager(name)
 {
   SetMakeGeneralHistograms(kTRUE);
+
+  // Initializing array in CINT-compatible way
+  EventEMCALTriggerType_t fTriggerTypesValues[kNTriggerTypes] = {kNTr, kEL0, kEG1, kEG2, kEJ1, kEJ2};
+  memcpy (fTriggerTypes,fTriggerTypesValues,sizeof(fTriggerTypes));
 }
 
 
@@ -101,7 +105,6 @@ void AliEmcalTriggerSimQATask::UserCreateOutputObjects() {
  * \return Always true.
  */
 Bool_t AliEmcalTriggerSimQATask::Run() {
-
   if (!fCaloClusters)
   {
     fCaloClusters = (TClonesArray*)GetClusterContainer(0);
@@ -128,7 +131,6 @@ Bool_t AliEmcalTriggerSimQATask::FillHistograms() {
  * \return a pointer to the new instance of the class
  */
 AliEmcalTriggerSimQATask * AliEmcalTriggerSimQATask::AddTaskEmcalTriggerSimQA() {
-
   TString ClusterContName = "caloClusters";
 
   // Get the pointer to the existing analysis manager via the static access method
@@ -164,7 +166,6 @@ AliEmcalTriggerSimQATask * AliEmcalTriggerSimQATask::AddTaskEmcalTriggerSimQA() 
 }
 
 void AliEmcalTriggerSimQATask::DoPatchLoop() {
-
   fEventTriggerBits = 0x0; // Reset
   fTriggerPatches = dynamic_cast<TClonesArray*>(InputEvent()->FindListObject(fTriggerPatchesName));
 
@@ -176,7 +177,6 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
     AliEMCALTriggerPatchInfo* patch = static_cast<AliEMCALTriggerPatchInfo*>(fTriggerPatches->At(i));
     if (!patch) continue;
     if (patch->GetADCAmp() < fMinAmplitude) continue;
-
     if (patch->IsLevel0()) fEventTriggerBits |= 0x1 << kL0;
     if (patch->IsGammaLow()) fEventTriggerBits |= 0x1 << kEG1;
     if (patch->IsGammaHigh()) fEventTriggerBits |= 0x1 << kEG2;
@@ -213,6 +213,5 @@ void AliEmcalTriggerSimQATask::DoClusterLoop() {
       fHistManager.FillTH1(histname,cluster->E());
     }
   }
-
 }
 
