@@ -131,8 +131,8 @@ public:
   Int_t                       CorrelateClusterAndTrack(AliParticleContainer* tracks,TObjArray* bgTracks,Bool_t SameMix, Double_t Weight);
   Int_t                       CorrelatePi0AndTrack(AliParticleContainer* tracks,TObjArray* bgTracks,Bool_t SameMix, Double_t Weight);
   void                        FillPi0CandsHist(AliTLorentzVector CaloClusterVec,AliTLorentzVector CaloClusterVec2,AliTLorentzVector CaloClusterVecPi0,Double_t fMaxClusM02,Double_t Weight,Int_t isMixed, Int_t mcIndex1 = -1, Int_t mcIndex2 = -1, Int_t PosSwapStatus = 0); // Pos swap status 1 is for conserved energy pair, 2 is for conserved positions pair
-  void                        FillTriggerHist(AliTLorentzVector ClusterVec, Double_t Weight);
-  void                        FillGhHistograms(Int_t identifier,AliTLorentzVector ClusterVec,AliVParticle* TrackVec, Double_t Weight);
+  void                        FillTriggerHist(AliTLorentzVector ClusterVec, Int_t CorrMCStatus, Double_t Weight);
+  void                        FillGhHistograms(Int_t identifier,AliTLorentzVector ClusterVec,AliVParticle* TrackVec, Int_t CorrMCStatus, Double_t Weight);
   void                        FillQAHistograms(Int_t identifier,AliClusterContainer* clusters,AliVCluster* caloCluster,AliVParticle* TrackVec, Double_t Weight=1);
   Bool_t                      AccClusterForAna(AliClusterContainer* clusters, AliVCluster* caloCluster);
   Bool_t                      AccClusPairForAna(AliVCluster* cluster1, AliVCluster * cluster2, TLorentzVector vecPi0);

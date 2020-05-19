@@ -282,7 +282,8 @@ Bool_t AliEmcalTriggerSimQATask::FillHistograms() {
  * \return a pointer to the new instance of the class
  */
 AliEmcalTriggerSimQATask * AliEmcalTriggerSimQATask::AddTaskEmcalTriggerSimQA() {
-  TString ClusterContName = "caloClusters";
+  //TString ClusterContName = "caloClusters";
+  TString ClusterContName = "CaloClusters";
 
   // Get the pointer to the existing analysis manager via the static access method
   AliAnalysisManager *mgr = AliAnalysisManager::GetAnalysisManager();
