@@ -70,7 +70,7 @@ AliAnalysisTaskGammaHadron::AliAnalysisTaskGammaHadron()
   fMatchDeltaEtaTrackPt(0),fMatchDeltaPhiTrackPt(0),fMatchCondDeltaEtaTrackPt(0),fMatchCondDeltaPhiTrackPt(0),fClusterEnergyMatchedTracks(0),fHistEOverPvE(0),fHistPOverEvE(0),
   fHistPSDistU(0),fHistPSDistV(0),
   fRand(0),
-  fClusEnergy(0),fDoRotBkg(0),fDoClusMixing(0),fDoPosSwapMixing(0),fNRotBkgSamples(1),fPi0Cands(0),fHistEventHash(0),
+  fClusEnergy(0),fAccClusEtaPhi(0),fAccClusEtaPhiZvtx(0),bEnableClusPairRot(0),fDoRotBkg(0),fDoClusMixing(0),fDoPosSwapMixing(0),fNRotBkgSamples(1),fPi0Cands(0),fHistEventHash(0),
   bEnablePosSwapHists(false),bLogPSMod(true),fPSMassPtMap(0),fESMassPtMap(0),fUScaleMatrix(0),fVScaleMatrix(0),
   fEMCalMultvZvtx(0),
   fHistClusMCDE(0),fHistClusMCDPhiDEta(0),fHistPi0MCDPt(0),fHistEtaMCDPt(0),fHistPi0MCDPhiDEta(0),fHistEtaMCDPhiDEta(0),
@@ -110,7 +110,7 @@ AliAnalysisTaskGammaHadron::AliAnalysisTaskGammaHadron(Int_t InputGammaOrPi0,Int
   fMatchDeltaEtaTrackPt(0),fMatchDeltaPhiTrackPt(0),fMatchCondDeltaEtaTrackPt(0),fMatchCondDeltaPhiTrackPt(0),fClusterEnergyMatchedTracks(0),fHistEOverPvE(0),fHistPOverEvE(0),
   fHistPSDistU(0),fHistPSDistV(0),
   fRand(0),
-  fClusEnergy(0),fDoRotBkg(0),fDoClusMixing(0),fDoPosSwapMixing(0),fNRotBkgSamples(1),fPi0Cands(0),fHistEventHash(0),
+  fClusEnergy(0),fAccClusEtaPhi(0),fAccClusEtaPhiZvtx(0),bEnableClusPairRot(0),fDoRotBkg(0),fDoClusMixing(0),fDoPosSwapMixing(0),fNRotBkgSamples(1),fPi0Cands(0),fHistEventHash(0),
   bEnablePosSwapHists(false),bLogPSMod(true),fPSMassPtMap(0),fESMassPtMap(0),fUScaleMatrix(0),fVScaleMatrix(0),
   fEMCalMultvZvtx(0),
   fHistClusMCDE(0),fHistClusMCDPhiDEta(0),fHistPi0MCDPt(0),fHistEtaMCDPt(0),fHistPi0MCDPhiDEta(0),fHistEtaMCDPhiDEta(0),
@@ -1408,7 +1408,13 @@ void AliAnalysisTaskGammaHadron::UserCreateOutputObjects()
   fOutput->Add(fHistTrackPsiRPPtCent);
 
 
-
+  //TH2F * 
+  int nClusEtaBins = 2;
+  int nClusPhiBins = 18;
+  fAccClusEtaPhi  = new TH2F("fAccClusEtaPhi","Accepted Cluster;#eta;#phi",nClusEtaBins,-0.7,0.7,nClusPhiBins,0.,2*TMath::Pi());
+  fOutput->Add(fAccClusEtaPhi);
+  fAccClusEtaPhiZvtx  = new TH3F("fAccClusEtaPhiZvtx","Accepted Cluster;#eta;#phi;z_{vtx}",nClusEtaBins,-0.7,0.7,nClusPhiBins,0.,2*TMath::Pi(),10,-10.,10.);
+  fOutput->Add(fAccClusEtaPhiZvtx);
 
 	if ( fGammaOrPi0>0 ) {  // Don't necessarily need this for Gamma analysis
 		fClusEnergy = new TH1F("ClusEnergy","Cluster Energy",1000,0,50);
@@ -2421,13 +2427,12 @@ Int_t AliAnalysisTaskGammaHadron::CorrelatePi0AndTrack(AliParticleContainer* tra
             Int_t iSelectClusNo = -1;
             Int_t nTimes = 1; // 1 if no looping
 
+            if (!fRand) fRand = new TRandom3(0);
             if (fDoPosSwapMixing == 1) {
-              if (!fRand) fRand = new TRandom3(0);
               iSelectClusNo = fRand->Integer(NoOfClustersInEvent);
             } else {
               nTimes = NoOfClustersInEvent; // number of available clusters to mix
             }
-
             Int_t iRandomSamples = 0;
 
             //AliInfo(Form("Starting PosSwap Cycle for pair %d %d",NoCluster1,NoCluster2));
@@ -2447,7 +2452,9 @@ Int_t AliAnalysisTaskGammaHadron::CorrelatePi0AndTrack(AliParticleContainer* tra
                 }
               }
 
-              AliVCluster * cluster3 = clusters->GetAcceptCluster(iSelectClusNo);
+              AliVCluster * cluster3 = 0;
+              cluster3 = clusters->GetAcceptCluster(iSelectClusNo);
+              //AliVCluster * cluster3 = clusters->GetAcceptCluster(iSelectClusNo);
               Int_t iMCIndexClus3 = -1;
 
               if (cluster3 && AccClusterForAna(clusters,cluster3)) {
@@ -2519,16 +2526,48 @@ Int_t AliAnalysisTaskGammaHadron::CorrelatePi0AndTrack(AliParticleContainer* tra
                   fVScaleMatrix->Fill(ModArray,Weight);
                 }
 
+
                 // ======================================================================
                 // Set swap cluster to have energy of cluster2 (swapping pos 3 with pos 2)
-                CaloClusterVecSwap = CaloClusterVec2;
-                CaloClusterVecSwap.SetPhi(CaloClusterVec3.Phi());
-                CaloClusterVecSwap.SetTheta(CaloClusterVec3.Theta());
-//                CaloClusterVecSwap.SetPhi(CaloClusterVecPi0Swap.Phi());
-//                CaloClusterVecSwap.SetTheta(CaloClusterVecPi0Swap.Theta());
+                // ======================================================================
+                // If cluster pair rotation is enabled the pos swap is replaced with that.
+                // Do the cluster pair rotation around the axis of the combined 4-vector
+                // ======================================================================
+                Double_t evtPlaneAngle = 0;
 
-                CaloClusterVecPi0Swap = CaloClusterVec + CaloClusterVecSwap;
-                Double_t evtPlaneAngle=DeltaPhi(CaloClusterVecPi0Swap,fQnCorrEventPlaneAngle); //fEPV0);
+               // Note: have CaloClusterVecpi0=CaloClusterVec+CaloClusterVec2;
+                // have v.Rotate(TMath::Pi()/4., v1); // rotation around v1
+                TLorentzVector fRotatedClus1,fRotatedClus2;
+                fRotatedClus1 = CaloClusterVec;
+                fRotatedClus2 = CaloClusterVec2;
+
+                // Set to false in rotated pair mode 
+                Bool_t fAcceptableCluster = true;
+
+                if (bEnableClusPairRot) {
+                  // randomly decide which way
+                  Double_t fRotationAngle = TMath::Pi() / 2. + TMath::Pi() * fRand->Integer(2);
+                  fRotatedClus1.Rotate(fRotationAngle,CaloClusterVecpi0.Vect());
+                  fRotatedClus2.Rotate(fRotationAngle,CaloClusterVecpi0.Vect());
+                  //AliInfo(Form("DEBUG RotPair: angle = %.1f, combined = (%.2f,%.2f) clus1 (%.2f,%.2f) -> (%.2f,%.2f), clus2 (%.2f,%.2f) -> (%.2f,%.2f)",fRotationAngle,CaloClusterVecpi0.Eta(),CaloClusterVecpi0.Phi(),CaloClusterVec.Eta(),CaloClusterVec.Phi(),fRotatedClus1.Eta(),fRotatedClus1.Phi(),CaloClusterVec2.Eta(),CaloClusterVec2.Phi(),fRotatedClus2.Eta(),fRotatedClus2.Phi()));
+                  // FIXME check acceptance
+                  CaloClusterVecPi0Swap = fRotatedClus1 + CaloClusterVec3;
+                  fAcceptableCluster = QuickCheckAccClus(fRotatedClus1);
+                } else {
+                  CaloClusterVecSwap = CaloClusterVec2;
+                  CaloClusterVecSwap.SetPhi(CaloClusterVec3.Phi());
+                  CaloClusterVecSwap.SetTheta(CaloClusterVec3.Theta());
+  //                CaloClusterVecSwap.SetPhi(CaloClusterVecPi0Swap.Phi());
+  //                CaloClusterVecSwap.SetTheta(CaloClusterVecPi0Swap.Theta());
+
+                  CaloClusterVecPi0Swap = CaloClusterVec + CaloClusterVecSwap; 
+                }
+
+                evtPlaneAngle=DeltaPhi(CaloClusterVecPi0Swap,fQnCorrEventPlaneAngle); //fEPV0);
+
+
+
+
                 Int_t evtPlaneCategory=-1;
                 Double_t angleFromAxis;
                 // Calculate EP category for the PosSwapped cluster pair
@@ -2550,20 +2589,30 @@ Int_t AliAnalysisTaskGammaHadron::CorrelatePi0AndTrack(AliParticleContainer* tra
                   ModArray[3] = CaloClusterVecPi0Swap.Pt();// Final Pt
                   fPSMassPtMap->Fill(ModArray,Weight);
                 }
+                if (fAcceptableCluster) {
+                  // for MC, fill once with energy match MC index and once with position match index (0.5 weight each time)
 
-                // for MC, fill once with energy match MC index and once with position match index (0.5 weight each time)
-                if (fIsMC) {
-                  // Keeping the MC indices of the original pair (A,B) (Energy pair conserved for MC Info)
-                  // Final argument 1 means MC indices for for E_A,E_B (A location is changed)
-                  FillPi0CandsHist(CaloClusterVec,CaloClusterVecSwap,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus1,iMCIndexClus2,1);
-                  // Alternate, use index of 3rd cluster
-                  // MC id for (A,C) (Position pair conserved)
-                  // Final argument 2 means MC indices for for x_A,x_C (An energy is changed)
-                  FillPi0CandsHist(CaloClusterVec,CaloClusterVecSwap,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus1,iMCIndexClus3,2);
-                } else {
-                  FillPi0CandsHist(CaloClusterVec,CaloClusterVecSwap,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus1,iMCIndexClus2);
+                  if (bEnableClusPairRot) {
+                    if (fIsMC) {
+                      FillPi0CandsHist(fRotatedClus1,CaloClusterVec3,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus1,iMCIndexClus3,1);
+                    } else {
+                      FillPi0CandsHist(fRotatedClus1,CaloClusterVec3,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus1,iMCIndexClus3);
+                    }
+                  } else {
+
+                    if (fIsMC) {
+                      // Keeping the MC indices of the original pair (A,B) (Energy pair conserved for MC Info)
+                      // Final argument 1 means MC indices for for E_A,E_B (A location is changed)
+                      FillPi0CandsHist(CaloClusterVec,CaloClusterVecSwap,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus1,iMCIndexClus2,1);
+                      // Alternate, use index of 3rd cluster
+                      // MC id for (A,C) (Position pair conserved)
+                      // Final argument 2 means MC indices for for x_A,x_C (An energy is changed)
+                      FillPi0CandsHist(CaloClusterVec,CaloClusterVecSwap,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus1,iMCIndexClus3,2);
+                    } else {
+                      FillPi0CandsHist(CaloClusterVec,CaloClusterVecSwap,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus1,iMCIndexClus2);
+                    }
+                  }
                 }
-
                 // Energy Swap Map
                 if (bEnablePosSwapHists) {
                   CaloClusterVecSwap = CaloClusterVec3;
@@ -2579,11 +2628,22 @@ Int_t AliAnalysisTaskGammaHadron::CorrelatePi0AndTrack(AliParticleContainer* tra
 
                 // ======================================================================
                 // Now, do it again using the energy of cluster 1 (swapping pos 3 with pos 1)
-                CaloClusterVecSwap = CaloClusterVec;
-                CaloClusterVecSwap.SetPhi(CaloClusterVec3.Phi());
-                CaloClusterVecSwap.SetTheta(CaloClusterVec3.Theta());
+                // ======================================================================
+                // If doing clus pair rotation, use the 2nd cluster of the rotated pair
+                // ======================================================================
+                if (bEnableClusPairRot) {
+                // FIXME check if RC2 in acceptance
+                  CaloClusterVecPi0Swap = fRotatedClus2 + CaloClusterVec3;
+                  if (!QuickCheckAccClus(fRotatedClus2)) continue; // save time
+                } else {
+                  CaloClusterVecSwap = CaloClusterVec;
+                  CaloClusterVecSwap.SetPhi(CaloClusterVec3.Phi());
+                  CaloClusterVecSwap.SetTheta(CaloClusterVec3.Theta());
 
-                CaloClusterVecPi0Swap = CaloClusterVecSwap + CaloClusterVec2;
+                  CaloClusterVecPi0Swap = CaloClusterVecSwap + CaloClusterVec2;
+                }
+
+
 
                 evtPlaneAngle=DeltaPhi(CaloClusterVecPi0Swap,fQnCorrEventPlaneAngle); //fEPV0);
                 evtPlaneCategory=-1;
@@ -2605,14 +2665,21 @@ Int_t AliAnalysisTaskGammaHadron::CorrelatePi0AndTrack(AliParticleContainer* tra
                   ModArray[3] = CaloClusterVecPi0Swap.Pt();// Final Pt
                   fPSMassPtMap->Fill(ModArray,Weight);
                 }
-
-                if (fIsMC) {
-                  // MC info for energy pair (A,B)
-                  FillPi0CandsHist(CaloClusterVecSwap,CaloClusterVec2,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus2,iMCIndexClus1,1);
-                  // Now use MC id (C,B) for Position Pair
-                  FillPi0CandsHist(CaloClusterVecSwap,CaloClusterVec2,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus3,iMCIndexClus2,2);
+                if (bEnableClusPairRot) {
+                  if (fIsMC) {
+                    FillPi0CandsHist(fRotatedClus2,CaloClusterVec3,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus2,iMCIndexClus3,1);
+                  } else {
+                    FillPi0CandsHist(fRotatedClus2,CaloClusterVec3,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus2,iMCIndexClus3);
+                  }
                 } else {
-                  FillPi0CandsHist(CaloClusterVecSwap,CaloClusterVec2,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus2,iMCIndexClus1);
+                  if (fIsMC) {
+                    // MC info for energy pair (A,B)
+                    FillPi0CandsHist(CaloClusterVecSwap,CaloClusterVec2,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus2,iMCIndexClus1,1);
+                    // Now use MC id (C,B) for Position Pair
+                    FillPi0CandsHist(CaloClusterVecSwap,CaloClusterVec2,CaloClusterVecPi0Swap,fMaxClusM02,0.5*Weight,2,iMCIndexClus3,iMCIndexClus2,2);
+                  } else {
+                    FillPi0CandsHist(CaloClusterVecSwap,CaloClusterVec2,CaloClusterVecPi0Swap,fMaxClusM02,Weight,2,iMCIndexClus2,iMCIndexClus1);
+                  }
                 }
 
                 // Energy Swap Map
@@ -3055,6 +3122,10 @@ void AliAnalysisTaskGammaHadron::FillPi0CandsHist(AliTLorentzVector CaloClusterV
 	// Rotational Background
 	//  const Double_t fOpeningAngleCut = 0.017;
 
+  // Can replace this with Joshua Koenig's rotated background here
+  // add in a reference to the cluster container, so the second loop can be done here?
+  // or it might be better to do that in the position swap code
+
 	if (!fRand) fRand = new TRandom3(0);
 
 	Double_t fParA = 1.3;
@@ -3477,8 +3548,12 @@ Bool_t AliAnalysisTaskGammaHadron::AccClusterForAna(AliClusterContainer* cluster
   //-----------------------------
   //..Exotic cells
 
+  double ClusterPhi2Pi = caloClusterVec.Phi();
+  if (ClusterPhi2Pi < 0) ClusterPhi2Pi += 2*TMath::Pi();
 
   fClusterAcceptanceStatus[iClusterID] = 1; // This marks the cluster as accepted
+  fAccClusEtaPhi->Fill(caloClusterVec.Eta(),ClusterPhi2Pi); 
+  fAccClusEtaPhiZvtx->Fill(caloClusterVec.Eta(),ClusterPhi2Pi,fVertex[2]); 
   return Accepted;
 }
 //
@@ -3608,6 +3683,21 @@ Bool_t AliAnalysisTaskGammaHadron::AccClusPairForAna(AliVCluster* cluster1, AliV
   }
   return Accepted;
 }
+
+Bool_t AliAnalysisTaskGammaHadron::QuickCheckAccClus(TLorentzVector ClusterVec) {
+  if (!fAccClusEtaPhi) return true; // default to allowing all clusters if histogram missing
+
+// FIXME
+  return true;
+  double fClusPhi = ClusterVec.Phi();
+  if (fClusPhi < 0) fClusPhi += 2 * TMath::Pi();
+  // Todo: add option for fAccClusEtaPhiZvtx
+  float fCellContent = fAccClusEtaPhi->GetBinContent(ClusterVec.Eta(),fClusPhi);
+  if (fCellContent > 0) AliInfo(Form("DEBUG: Quick accept found nonzero bin content at (%f,%f)= %f\n",ClusterVec.Eta(),fClusPhi,fCellContent));
+  AliInfo(Form("DEBUG: Quick accept found bin content at (%f,%f)= %f\n",ClusterVec.Eta(),fClusPhi,fCellContent));
+  return fCellContent > 0;
+}
+
 //________________________________________________________________________
 Double_t AliAnalysisTaskGammaHadron::DeltaPhi(AliTLorentzVector ClusterVec,AliVParticle* TrackVec)
 {
@@ -3998,7 +4088,7 @@ Int_t AliAnalysisTaskGammaHadron::CalculateEventHash() {
   //Double_t fT0TOF = (Double_t) InputEvent()->GetT0TOF()[0];
 
   UInt_t iOrbitNumber = InputEvent()->GetOrbitNumber();
-  UInt_t iBC = (UInt_t) InputEvent()->GetBunchCrossNumber();
+//  UInt_t iBC = (UInt_t) InputEvent()->GetBunchCrossNumber();
   //Int_t iEventNumberInFile = InputEvent()->GetEventNumberInFile();
 
   if (!fIsMC) { // Data
