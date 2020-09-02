@@ -1239,6 +1239,8 @@ Bool_t AliAnalysisTaskEmcal::HasTriggerType(TriggerType trigger)
 }
 
 Bool_t AliAnalysisTaskEmcal::IsEventSelected(){
+  // FIXME temporary, do not commit
+  return true;
   if(fUseBuiltinEventSelection) return IsEventSelectedInternal();
   if(!IsTriggerSelected()) return false;
   if(!CheckMCOutliers()) return false;
