@@ -69,7 +69,7 @@ class AliEmcalTriggerSimQATask : public AliAnalysisTaskEmcal {
 
   void SetMinAmplitude(Int_t m)             { fMinAmplitude = m; }
   void SetMinClusterEnergy(Float_t m)       { fMinClusterEnergy = m; }
-
+  void SetClusterEnergyDivider(Float_t m)   { fClusterDivider = m; } 
 
  protected:
   void                                      UserCreateOutputObjects();
@@ -82,9 +82,17 @@ class AliEmcalTriggerSimQATask : public AliAnalysisTaskEmcal {
   static const Int_t                        kNTriggerTypes = 11; // MB,EL0,DL0,EG1,DG1,EG2,DG2,EJ1,DJ1,EJ2,DJ2
 //  const TString                             fTriggerNames[kNTriggerTypes] = {"MB","L0","EG1","EG2","EJ1","EJ2"};
   const TString                             fTriggerNames[kNTriggerTypes] = {"MB","EL0","DL0","EG1","DG1","EG2","DG2","EJ1","DJ1","EJ2","DJ2"};
+
+  static const Int_t                        kNTriggerModes = 3;
+  const TString                             fTriggerModeNames[kNTriggerModes] = {"Online", "Recalc", "OfflineSimple"};
+
   EventEMCALTriggerType_t                   fTriggerTypes[kNTriggerTypes]; ///< Trigger type array
   TString                                   fTriggerPatchesName;         ///< name of input trigger array
   TClonesArray                             *fTriggerPatches;             //!<! trigger array in
+
+
+  Double_t                                  fClusterDivider = 3;///< Threshold between low and high energy clusters
+
 
   Int_t                                     fMinAmplitude;               ///< Minimum trigger patch amplitude
   Float_t                                   fMinClusterEnergy;           ///< Minimum cluster energy
@@ -97,7 +105,9 @@ class AliEmcalTriggerSimQATask : public AliAnalysisTaskEmcal {
   THistManager                              fHistManager;                ///< Histogram Manager
 
   void                                      DoPatchLoop();               // Loop over patches, determine trigger condition
-  void                                      FillPatchHistograms(AliEMCALTriggerPatchInfo * patch,Int_t i);               // Fill histograms with patch information
+  void                                      FillMaximumPatchHistograms(AliEMCALTriggerPatchInfo * patch,Int_t iMode, Int_t iClass);               // Fill histograms with patch information for the maximum ADC patch
+  void                                      FillPatchHistograms(AliEMCALTriggerPatchInfo * patch, Int_t iMode, Int_t i);               // Fill histograms with patch information
+  void                                      FillPatchHistogramsAll(AliEMCALTriggerPatchInfo * patch, Int_t i);               // Fill histograms with patch information (not separating modes)
   Int_t                                     GeneratePatchTriggerBits(AliEMCALTriggerPatchInfo * patch);               // Generate a trigger bits int for a single patch
   void                                      DoClusterLoop();             // Loop over clusters, fill histograms
   void                                      MatchClusterToPatches(AliVCluster * cluster); // Match cluster to trigger patches, fill histos
