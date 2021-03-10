@@ -65,7 +65,7 @@ class AliEmcalTriggerSimQATask : public AliAnalysisTaskEmcal {
   AliEmcalTriggerSimQATask(const char *name);
   virtual ~AliEmcalTriggerSimQATask();
 
-  static AliEmcalTriggerSimQATask * AddTaskEmcalTriggerSimQA();
+  static AliEmcalTriggerSimQATask * AddTaskEmcalTriggerSimQA(Bool_t isESD = 0);
 
   void SetMinAmplitude(Int_t m)             { fMinAmplitude = m; }
   void SetMinClusterEnergy(Float_t m)       { fMinClusterEnergy = m; }
@@ -100,6 +100,8 @@ class AliEmcalTriggerSimQATask : public AliAnalysisTaskEmcal {
   Float_t                                   fMaxPt;                      ///< Histogram pt limit
 
   Int_t                                     fEventTriggerBits;           //!<! Variable storing trigger bits for entire event, set by DoPatchLoop()
+  Double_t                                  fEventWeight;                //!<! Event weight from MC header for filling histograms
+
 
   // Histograms
   THistManager                              fHistManager;                ///< Histogram Manager

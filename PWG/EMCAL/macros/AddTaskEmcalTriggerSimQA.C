@@ -7,7 +7,7 @@
 /// \author Michael Oliver <michael.oliver@cern.ch>, Yale University
 /// \date Dec 11, 2018
 
-AliEmcalTriggerSimQATask* AddTaskEmcalTriggerSimQA()
+AliEmcalTriggerSimQATask* AddTaskEmcalTriggerSimQA(Bool_t isESD = 0)
 {
-  return AliEmcalTriggerSimQATask::AddTaskEmcalTriggerSimQA();
+  return AliEmcalTriggerSimQATask::AddTaskEmcalTriggerSimQA(isESD);
 }

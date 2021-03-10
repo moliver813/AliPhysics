@@ -16,6 +16,7 @@
 #include <TClonesArray.h>
 #include <THashList.h>
 
+#include <AliEmcalPythiaInfo.h>
 #include <AliVEventHandler.h>
 #include <AliAnalysisManager.h>
 #include <AliClusterContainer.h>
@@ -38,6 +39,7 @@ fMinClusterEnergy(3.),
 fPtBinWidth(0.5),
 fMaxPt(120),
 fEventTriggerBits(0x0),
+fEventWeight(1.),
 fHistManager("AliEmcalTriggerSimQATask")
 {}
 
@@ -53,6 +55,7 @@ fMinClusterEnergy(3.),
 fPtBinWidth(0.5),
 fMaxPt(120),
 fEventTriggerBits(0x0),
+fEventWeight(1.),
 fHistManager(name)
 {
   SetMakeGeneralHistograms(kTRUE);
@@ -427,6 +430,18 @@ Bool_t AliEmcalTriggerSimQATask::Run() {
  * \return Always true.
  */
 Bool_t AliEmcalTriggerSimQATask::FillHistograms() {
+  // Load the MC Weight using AliGenEventHeader::EventWeight() or AliGenEventHeader::GetEventWeight("")
+  // or event->GenEventHeader()->EventWeight();
+  // or fPythiaInfo->GetPythiaEventWeight()
+  //     fXsection; fNTrials; might be useful
+  //   AliEmcalPythiaInfo         *fPythiaInfo;
+  // fPythiaInfo->GetPythiaEventWeight()
+  if (fPythiaInfo) {
+    fEventWeight = fPythiaInfo->GetPythiaEventWeight();
+  } else {
+    fEventWeight = 1;
+  }
+
   // Loop over patches, identify which trigger conditions are met
   DoPatchLoop();
 
@@ -439,9 +454,10 @@ Bool_t AliEmcalTriggerSimQATask::FillHistograms() {
  * Create a new instance, adds it to analysis manager
  * \return a pointer to the new instance of the class
  */
-AliEmcalTriggerSimQATask * AliEmcalTriggerSimQATask::AddTaskEmcalTriggerSimQA() {
-  //TString ClusterContName = "caloClusters";
-  TString ClusterContName = "CaloClusters";
+AliEmcalTriggerSimQATask * AliEmcalTriggerSimQATask::AddTaskEmcalTriggerSimQA(Bool_t isESD) {
+
+  TString ClusterContName = "caloClusters";
+  if (isESD) ClusterContName = "CaloClusters";
 
   // Get the pointer to the existing analysis manager via the static access method
   AliAnalysisManager *mgr = AliAnalysisManager::GetAnalysisManager();
@@ -516,7 +532,7 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
   }
 
   Int_t nPatches = fTriggerPatches->GetEntries();
-  fHistManager.FillTH1("NPatches",nPatches);
+  fHistManager.FillTH1("NPatches",nPatches,fEventWeight);
 
   //Float_t fMaxPatchADC = -1;
   //AliEMCALTriggerPatchInfo* fMaxADCPatch = 0;
@@ -533,20 +549,6 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
     AliEMCALTriggerPatchInfo* patch = static_cast<AliEMCALTriggerPatchInfo*>(fTriggerPatches->At(i));
     if (!patch) continue;
     if (patch->GetADCAmp() < fMinAmplitude) continue;
-    AliInfo(Form("This patch (%d) has ADCAmp %d and trigger bits %x",i,patch->GetADCAmp(),patch->GetTriggerBits()));
-    if (patch->IsOfflineSimple()) {
-      AliInfo(Form("This (%d) is an offline simple patch",i));
-    }
-    if (patch->IsOnline()) {
-      AliInfo(Form("This (%d) is an online patch",i));
-    }
-    if (patch->IsRecalc()) {
-      AliInfo(Form("This (%d) is a recalc patch",i));
-    }
-    if (!patch->IsOfflineSimple() && !patch->IsOnline() && !patch->IsRecalc()) {
-
-      AliInfo(Form("This (%d) is none of the above",i));
-    }
 
     if (patch->IsOnline() && patch->GetADCAmp() > fOnlineMaxPatchADC) {
       fOnlineMaxADCPatch = patch;
@@ -609,21 +611,6 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
     }
   }
 
-    /*AliInfo(Form("Found maximum patch of ADC Amplitude %f and energy %f, trigger bits %x\n",fMaxPatchADC,patch->GetPatchE(),patch->GetTriggerBits()));
-      if (patch->IsOfflineSimple()) {
-        AliInfo("This maximum patch is an offline simple patch");
-      }
-      if (patch->IsOnline()) {
-        AliInfo("This maximum patch is an online patch");
-      }
-      if (patch->IsRecalc()) {
-        AliInfo("This maximum patch is a recalc patch");
-      }
-      if (!patch->IsOfflineSimple() && !patch->IsOnline() && !patch->IsRecalc()) {
-
-        AliInfo("This maximum patch is none of the above");
-      }*/
-
   if (fOnlineMaxADCPatch != 0) {
     AliEMCALTriggerPatchInfo* patch = fOnlineMaxADCPatch;
     Bool_t fIsDCal = patch->IsDCalPHOS();
@@ -631,32 +618,27 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
     Int_t fTriggerInt = 0;
     Int_t iTriggerMode = 0;
     if (patch->IsLevel0()) {
-      AliInfo("    This is an L0 Patch");
       fTriggerInt = kEL0 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsGammaHigh()) {
-      AliInfo("    This is a Gamma High Patch");
       fTriggerInt = kEG1 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsGammaLow()) {
-      AliInfo("    This is a Gamma Low Patch");
       fTriggerInt = kEG2 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsJetHigh()) {
-      AliInfo("    This is a Jet High Patch");
       fTriggerInt = kEJ1 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsJetLow()) {
-      AliInfo("    This is a Jet Low Patch");
       fTriggerInt = kEJ2 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
   } else {
-    AliInfo(Form("Did not find a maximum online energy patch out of %d patches\n",nPatches));
+    AliDebug(999,Form("Did not find a maximum online energy patch out of %d patches\n",nPatches));
   }
 
 
@@ -667,32 +649,27 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
     Int_t fTriggerInt = 0;
     Int_t iTriggerMode = 1;
     if (patch->IsLevel0Recalc()) {
-      AliInfo("    This is an L0 Patch");
       fTriggerInt = kEL0 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsGammaHighRecalc()) {
-      AliInfo("    This is a Gamma High Patch");
       fTriggerInt = kEG1 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsGammaLowRecalc()) {
-      AliInfo("    This is a Gamma Low Patch");
       fTriggerInt = kEG2 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsJetHighRecalc()) {
-      AliInfo("    This is a Jet High Patch");
       fTriggerInt = kEJ1 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsJetLowRecalc()) {
-      AliInfo("    This is a Jet Low Patch");
       fTriggerInt = kEJ2 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
   } else {
-    AliInfo(Form("Did not find a maximum recalc energy patch out of %d patches\n",nPatches));
+    AliDebug(999,Form("Did not find a maximum recalc energy patch out of %d patches\n",nPatches));
   }
 
 
@@ -703,32 +680,27 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
     Int_t fTriggerInt = 0;
     Int_t iTriggerMode = 2;
     if (patch->IsLevel0Simple()) {
-      AliInfo("    This is an L0 Patch");
       fTriggerInt = kEL0 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsGammaHighSimple()) {
-      AliInfo("    This is a Gamma High Patch");
       fTriggerInt = kEG1 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsGammaLowSimple()) {
-      AliInfo("    This is a Gamma Low Patch");
       fTriggerInt = kEG2 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsJetHighSimple()) {
-      AliInfo("    This is a Jet High Patch");
       fTriggerInt = kEJ1 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
     if (patch->IsJetLowSimple()) {
-      AliInfo("    This is a Jet Low Patch");
       fTriggerInt = kEJ2 + fIsDCal;
       FillMaximumPatchHistograms(patch,iTriggerMode,fTriggerInt);
     }
   } else {
-    AliInfo(Form("Did not find a maximum OfflineSimple energy patch out of %d patches\n",nPatches));
+    AliDebug(999,Form("Did not find a maximum OfflineSimple energy patch out of %d patches\n",nPatches));
   }
 
 
@@ -737,67 +709,67 @@ void AliEmcalTriggerSimQATask::DoPatchLoop() {
 
 void AliEmcalTriggerSimQATask::FillMaximumPatchHistograms(AliEMCALTriggerPatchInfo * patch, Int_t iClass, Int_t iType) {
   // Individual energies
-  fHistManager.FillTH1(Form("fHistMaxEnergy%sPatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE());
-  fHistManager.FillTH1(Form("fHistMaxEnergy%sPatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp());
-  fHistManager.FillTH1(Form("fHistMaxEnergy%sPatchADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmpGeVRough());
+  fHistManager.FillTH1(Form("fHistMaxEnergy%sPatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH1(Form("fHistMaxEnergy%sPatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH1(Form("fHistMaxEnergy%sPatchADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmpGeVRough(),fEventWeight);
 
   // Energy correlations
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sADCAmpGeVRough_vs_PatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE(),patch->GetADCAmpGeVRough());
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sADCAmpGeVRough_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetADCAmpGeVRough());
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchEnergy_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetPatchE());
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sADCAmpGeVRough_vs_PatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE(),patch->GetADCAmpGeVRough(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sADCAmpGeVRough_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetADCAmpGeVRough(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchEnergy_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetPatchE(),fEventWeight);
 
   // energies vs columns
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetPatchE());
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmp());
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmpGeVRough());
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmpGeVRough(),fEventWeight);
   // energies vs rows
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchRowEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetPatchE());
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchRowOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmp());
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchRowADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmpGeVRough());
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchRowEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchRowOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchRowADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmpGeVRough(),fEventWeight);
 
   // rows and columns
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColRow_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetRowStart());
-  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchEtaPhiGeo_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetEtaGeo(),patch->GetPhiGeo());
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchColRow_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetRowStart(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistMaxEnergy%sPatchEtaPhiGeo_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetEtaGeo(),patch->GetPhiGeo(),fEventWeight);
 }
 
 void AliEmcalTriggerSimQATask::FillPatchHistograms(AliEMCALTriggerPatchInfo * patch, Int_t iClass, Int_t iType) {
 
   // Individual energies
-  fHistManager.FillTH1(Form("fHist%sPatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE());
-  fHistManager.FillTH1(Form("fHist%sPatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp());
-  fHistManager.FillTH1(Form("fHist%sPatchADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmpGeVRough());
+  fHistManager.FillTH1(Form("fHist%sPatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH1(Form("fHist%sPatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH1(Form("fHist%sPatchADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmpGeVRough(),fEventWeight);
 
   // Energy correlations
-  fHistManager.FillTH2(Form("fHist%sADCAmpGeVRough_vs_PatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE(),patch->GetADCAmpGeVRough());
-  fHistManager.FillTH2(Form("fHist%sADCAmpGeVRough_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetADCAmpGeVRough());
-  fHistManager.FillTH2(Form("fHist%sPatchEnergy_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetPatchE());
+  fHistManager.FillTH2(Form("fHist%sADCAmpGeVRough_vs_PatchEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetPatchE(),patch->GetADCAmpGeVRough(),fEventWeight);
+  fHistManager.FillTH2(Form("fHist%sADCAmpGeVRough_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetADCAmpGeVRough(),fEventWeight);
+  fHistManager.FillTH2(Form("fHist%sPatchEnergy_vs_PatchOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetADCAmp(),patch->GetPatchE(),fEventWeight);
 
 
   // energies vs columns
-  fHistManager.FillTH2(Form("fHist%sPatchColEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetPatchE());
-  fHistManager.FillTH2(Form("fHist%sPatchColOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmp());
-  fHistManager.FillTH2(Form("fHist%sPatchColADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmpGeVRough());
+  fHistManager.FillTH2(Form("fHist%sPatchColEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH2(Form("fHist%sPatchColOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH2(Form("fHist%sPatchColADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetADCAmpGeVRough(),fEventWeight);
 
   // energies vs rows
-  fHistManager.FillTH2(Form("fHist%sPatchRowEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetPatchE());
-  fHistManager.FillTH2(Form("fHist%sPatchRowOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmp());
-  fHistManager.FillTH2(Form("fHist%sPatchRowADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmpGeVRough());
+  fHistManager.FillTH2(Form("fHist%sPatchRowEnergy_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH2(Form("fHist%sPatchRowOnlineADCAmp_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH2(Form("fHist%sPatchRowADCAmpGeVRough_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetRowStart(),patch->GetADCAmpGeVRough(),fEventWeight);
 
   // rows and columns
-  fHistManager.FillTH2(Form("fHist%sPatchColRow_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetRowStart());
-  fHistManager.FillTH2(Form("fHist%sPatchEtaPhiGeo_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetEtaGeo(),patch->GetPhiGeo());
+  fHistManager.FillTH2(Form("fHist%sPatchColRow_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetColStart(),patch->GetRowStart(),fEventWeight);
+  fHistManager.FillTH2(Form("fHist%sPatchEtaPhiGeo_Trig_%s",fTriggerModeNames[iClass].Data(),fTriggerNames[iType+1].Data()),patch->GetEtaGeo(),patch->GetPhiGeo(),fEventWeight);
 
 }
 
 void AliEmcalTriggerSimQATask::FillPatchHistogramsAll(AliEMCALTriggerPatchInfo * patch, Int_t i) {
-  fHistManager.FillTH2(Form("fHistAllPatchColEnergy_Trig_%s",fTriggerNames[i+1].Data()),patch->GetColStart(),patch->GetPatchE());
-  fHistManager.FillTH2(Form("fHistAllPatchColOnlineADCAmp_Trig_%s",fTriggerNames[i+1].Data()),patch->GetColStart(),patch->GetADCAmp());
-  fHistManager.FillTH2(Form("fHistAllPatchRowEnergy_Trig_%s",fTriggerNames[i+1].Data()),patch->GetRowStart(),patch->GetPatchE());
-  fHistManager.FillTH2(Form("fHistAllPatchRowOnlineADCAmp_Trig_%s",fTriggerNames[i+1].Data()),patch->GetRowStart(),patch->GetADCAmp());
-  fHistManager.FillTH1(Form("fHistAllPatchEnergy_Trig_%s",fTriggerNames[i+1].Data()),patch->GetPatchE());
-  fHistManager.FillTH1(Form("fHistAllPatchOnlineADCAmp_Trig_%s",fTriggerNames[i+1].Data()),patch->GetADCAmp());
-  fHistManager.FillTH2(Form("fHistAllPatchColRow_Trig_%s",fTriggerNames[i+1].Data()),patch->GetColStart(),patch->GetRowStart());
-  fHistManager.FillTH2(Form("fHistAllPatchEtaPhiGeo_Trig_%s",fTriggerNames[i+1].Data()),patch->GetEtaGeo(),patch->GetPhiGeo());
+  fHistManager.FillTH2(Form("fHistAllPatchColEnergy_Trig_%s",fTriggerNames[i+1].Data()),patch->GetColStart(),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistAllPatchColOnlineADCAmp_Trig_%s",fTriggerNames[i+1].Data()),patch->GetColStart(),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistAllPatchRowEnergy_Trig_%s",fTriggerNames[i+1].Data()),patch->GetRowStart(),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistAllPatchRowOnlineADCAmp_Trig_%s",fTriggerNames[i+1].Data()),patch->GetRowStart(),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH1(Form("fHistAllPatchEnergy_Trig_%s",fTriggerNames[i+1].Data()),patch->GetPatchE(),fEventWeight);
+  fHistManager.FillTH1(Form("fHistAllPatchOnlineADCAmp_Trig_%s",fTriggerNames[i+1].Data()),patch->GetADCAmp(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistAllPatchColRow_Trig_%s",fTriggerNames[i+1].Data()),patch->GetColStart(),patch->GetRowStart(),fEventWeight);
+  fHistManager.FillTH2(Form("fHistAllPatchEtaPhiGeo_Trig_%s",fTriggerNames[i+1].Data()),patch->GetEtaGeo(),patch->GetPhiGeo(),fEventWeight);
 }
 
 void AliEmcalTriggerSimQATask::DoClusterLoop() {
@@ -809,7 +781,7 @@ void AliEmcalTriggerSimQATask::DoClusterLoop() {
     return ;
   }
   Int_t nClusters = clusters->GetNClusters();
-  fHistManager.FillTH1("NClusters",nClusters);
+  fHistManager.FillTH1("NClusters",nClusters,fEventWeight);
 
 
   // Get cell information
@@ -843,8 +815,8 @@ void AliEmcalTriggerSimQATask::DoClusterLoop() {
         continue;
       }
 
-      histname = TString::Format("fHistEMCalClusNumCells_Trig_%s",fTriggerNames[i].Data());
-      fHistManager.FillTH1(histname,nCells);
+      histname = TString::Format("fHistEMCalClusNumCells_Trig_%s",fTriggerNames[j].Data());
+      fHistManager.FillTH1(histname,nCells,fEventWeight);
 
       // Get Cluster vector
       TLorentzVector vCluster;
@@ -859,18 +831,17 @@ void AliEmcalTriggerSimQATask::DoClusterLoop() {
       } else {
         histname = TString::Format("fHistEMCalClusEnergy_Trig_%s",fTriggerNames[j].Data());
       }
-      fHistManager.FillTH1(histname,cluster->E());
-//      histname = TString::Format("fHistClusEnergy_Trig_%s",fTriggerNames[j].Data());
-//      fHistManager.FillTH1(histname,cluster->E());
+      fHistManager.FillTH1(histname,cluster->E(),fEventWeight);
+
       histname = TString::Format("fHistClusEtaPhi_Trig_%s",fTriggerNames[j].Data());
-      fHistManager.FillTH1(histname,vCluster.Eta(),fPhi);
+      fHistManager.FillTH2(histname,vCluster.Eta(),fPhi,fEventWeight);
 
       if (cluster->E() < fClusterDivider) {
         histname = TString::Format("fHistClusEtaPhiLow_Trig_%s",fTriggerNames[j].Data());
-        fHistManager.FillTH1(histname,vCluster.Eta(),fPhi);
+        fHistManager.FillTH2(histname,vCluster.Eta(),fPhi,fEventWeight);
       } else {
         histname = TString::Format("fHistClusEtaPhiHigh_Trig_%s",fTriggerNames[j].Data());
-        fHistManager.FillTH1(histname,vCluster.Eta(),fPhi);
+        fHistManager.FillTH2(histname,vCluster.Eta(),fPhi,fEventWeight);
       }
     }
   }
@@ -887,10 +858,10 @@ void AliEmcalTriggerSimQATask::DoClusterLoop() {
       }
 
       histname = TString::Format("fHistEMCalMaxClusEnergy_Trig_%s",fTriggerNames[j].Data());
-      fHistManager.FillTH1(histname,fMaxClusterEnergy);
+      fHistManager.FillTH1(histname,fMaxClusterEnergy,fEventWeight);
 
       histname = TString::Format("fHistEMCalMaxClusNumCells_Trig_%s",fTriggerNames[j].Data());
-      fHistManager.FillTH1(histname,nMaxNCells);
+      fHistManager.FillTH1(histname,nMaxNCells,fEventWeight);
     }
   }
 
@@ -950,53 +921,53 @@ void AliEmcalTriggerSimQATask::MatchClusterToPatches(AliVCluster * cluster) {
         if (patch->IsOnline()) {
           // Fill These histograms for all pairs:
           histName = TString::Format("fHistClus%sPatchDEtaTRU_Trig_%s",fTriggerModeNames[0].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,DeltaEta,iTRU);
+          fHistManager.FillTH2(histName,DeltaEta,iTRU,fEventWeight);
 
           histName = TString::Format("fHistClus%sPatchDPhiTRU_Trig_%s",fTriggerModeNames[0].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,DeltaPhi,iTRU);
+          fHistManager.FillTH2(histName,DeltaPhi,iTRU,fEventWeight);
 
           histName = TString::Format("fHistClusPhiClus%sPatchDPhi_Trig_%s",fTriggerModeNames[0].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterPhi,DeltaPhi);
+          fHistManager.FillTH2(histName,ClusterPhi,DeltaPhi,fEventWeight);
           histName = TString::Format("fHistClusEtaClus%sPatchDPhi_Trig_%s",fTriggerModeNames[0].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterEta,DeltaPhi);
+          fHistManager.FillTH2(histName,ClusterEta,DeltaPhi,fEventWeight);
           histName = TString::Format("fHistClusPhiClus%sPatchDEta_Trig_%s",fTriggerModeNames[0].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterPhi,DeltaEta);
+          fHistManager.FillTH2(histName,ClusterPhi,DeltaEta,fEventWeight);
           histName = TString::Format("fHistClusEtaClus%sPatchDEta_Trig_%s",fTriggerModeNames[0].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterEta,DeltaEta);
+          fHistManager.FillTH2(histName,ClusterEta,DeltaEta,fEventWeight);
         }
         if (patch->IsRecalc()) {
           // Fill These histograms for all pairs:
           histName = TString::Format("fHistClus%sPatchDEtaTRU_Trig_%s",fTriggerModeNames[1].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,DeltaEta,iTRU);
+          fHistManager.FillTH2(histName,DeltaEta,iTRU,fEventWeight);
 
           histName = TString::Format("fHistClus%sPatchDPhiTRU_Trig_%s",fTriggerModeNames[1].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,DeltaPhi,iTRU);
+          fHistManager.FillTH2(histName,DeltaPhi,iTRU,fEventWeight);
 
           histName = TString::Format("fHistClusPhiClus%sPatchDPhi_Trig_%s",fTriggerModeNames[1].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterPhi,DeltaPhi);
+          fHistManager.FillTH2(histName,ClusterPhi,DeltaPhi,fEventWeight);
           histName = TString::Format("fHistClusEtaClus%sPatchDPhi_Trig_%s",fTriggerModeNames[1].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterEta,DeltaPhi);
+          fHistManager.FillTH2(histName,ClusterEta,DeltaPhi,fEventWeight);
           histName = TString::Format("fHistClusPhiClus%sPatchDEta_Trig_%s",fTriggerModeNames[1].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterPhi,DeltaEta);
+          fHistManager.FillTH2(histName,ClusterPhi,DeltaEta,fEventWeight);
           histName = TString::Format("fHistClusEtaClus%sPatchDEta_Trig_%s",fTriggerModeNames[1].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterEta,DeltaEta);
+          fHistManager.FillTH2(histName,ClusterEta,DeltaEta,fEventWeight);
         }
         if (patch->IsOfflineSimple()) {
           // Fill These histograms for all pairs:
           histName = TString::Format("fHistClus%sPatchDEtaTRU_Trig_%s",fTriggerModeNames[2].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,DeltaEta,iTRU);
+          fHistManager.FillTH2(histName,DeltaEta,iTRU,fEventWeight);
 
           histName = TString::Format("fHistClus%sPatchDPhiTRU_Trig_%s",fTriggerModeNames[2].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,DeltaPhi,iTRU);
+          fHistManager.FillTH2(histName,DeltaPhi,iTRU,fEventWeight);
 
           histName = TString::Format("fHistClusPhiClus%sPatchDPhi_Trig_%s",fTriggerModeNames[2].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterPhi,DeltaPhi);
+          fHistManager.FillTH2(histName,ClusterPhi,DeltaPhi,fEventWeight);
           histName = TString::Format("fHistClusEtaClus%sPatchDPhi_Trig_%s",fTriggerModeNames[2].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterEta,DeltaPhi);
+          fHistManager.FillTH2(histName,ClusterEta,DeltaPhi,fEventWeight);
           histName = TString::Format("fHistClusPhiClus%sPatchDEta_Trig_%s",fTriggerModeNames[2].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterPhi,DeltaEta);
+          fHistManager.FillTH2(histName,ClusterPhi,DeltaEta,fEventWeight);
           histName = TString::Format("fHistClusEtaClus%sPatchDEta_Trig_%s",fTriggerModeNames[2].Data(),fTriggerNames[i].Data());
-          fHistManager.FillTH2(histName,ClusterEta,DeltaEta);
+          fHistManager.FillTH2(histName,ClusterEta,DeltaEta,fEventWeight);
         }
       }
     }
@@ -1020,15 +991,15 @@ void AliEmcalTriggerSimQATask::MatchClusterToPatches(AliVCluster * cluster) {
             TString sHistName = "";
             if (patch->IsOnline()) {
               sHistName = TString::Format("fHistClusEnergy%sPatchAmpTRU_Trig_%s",fTriggerModeNames[0].Data(),fTriggerNames[i].Data());
-              fHistManager.FillTH3(sHistName,cluster->E(),patch->GetADCAmp(),iTRU);
+              fHistManager.FillTH3(sHistName,cluster->E(),patch->GetADCAmp(),iTRU,fEventWeight);
             }
             if (patch->IsRecalc()) {
               sHistName = TString::Format("fHistClusEnergy%sPatchAmpTRU_Trig_%s",fTriggerModeNames[1].Data(),fTriggerNames[i].Data());
-              fHistManager.FillTH3(sHistName,cluster->E(),patch->GetADCAmp(),iTRU);
+              fHistManager.FillTH3(sHistName,cluster->E(),patch->GetADCAmp(),iTRU,fEventWeight);
             }
             if (patch->IsOfflineSimple()) {
               sHistName = TString::Format("fHistClusEnergy%sPatchAmpTRU_Trig_%s",fTriggerModeNames[2].Data(),fTriggerNames[i].Data());
-              fHistManager.FillTH3(sHistName,cluster->E(),patch->GetADCAmp(),iTRU);
+              fHistManager.FillTH3(sHistName,cluster->E(),patch->GetADCAmp(),iTRU,fEventWeight);
             }
           }
         }
